@@ -4,19 +4,26 @@ using System.Threading;
 using System.Threading.Tasks;
 using SharpCaster.Channels;
 using SharpCaster.Interfaces;
-using Sockets.Plugin;
+using System.Net.Sockets;
+using System.Net.Security;
 
 namespace SharpCaster.Services
 {
     public class ChromecastSocketService : IChromecastSocketService
     {
         private static readonly object LockObject = new object();
-        private TcpSocketClient _client;
+        private TcpClient _client;
+        private SslStream _stream;
 
         public async Task Initialize(string host, string port, ConnectionChannel connectionChannel, HeartbeatChannel heartbeatChannel, Action<Stream, bool, CancellationToken> packetReader, CancellationToken cancellationToken)
         {
-            if (_client == null) _client = new TcpSocketClient();
-            await _client.ConnectAsync(host, int.Parse(port), true, cancellationToken, true);
+            if (_client == null) _client = new TcpClient();
+            await _client.ConnectAsync(host, int.Parse(port));
+
+            var secureStream = new SslStream(_client.GetStream(), true, (sender, certificate, chain, sslPolicyErrors) => true);
+            await secureStream.AuthenticateAsClientAsync(host);
+            _stream = secureStream;
+
 
             await connectionChannel.OpenConnection();
             heartbeatChannel.StartHeartbeat();
@@ -27,14 +34,14 @@ namespace SharpCaster.Services
                 {
                     var sizeBuffer = new byte[4];
                     // First message should contain the size of message
-                    await _client.ReadStream.ReadAsync(sizeBuffer, 0, sizeBuffer.Length, cancellationToken);
+                    await _stream.ReadAsync(sizeBuffer, 0, sizeBuffer.Length, cancellationToken);
                     // The message is little-endian (that is, little end first),
                     // reverse the byte array.
                     Array.Reverse(sizeBuffer);
                     //Retrieve the size of message
                     var messageSize = BitConverter.ToInt32(sizeBuffer, 0);
                     var messageBuffer = new byte[messageSize];
-                    await _client.ReadStream.ReadAsync(messageBuffer, 0, messageBuffer.Length, cancellationToken);
+                    await _stream.ReadAsync(messageBuffer, 0, messageBuffer.Length, cancellationToken);
                     var answer = new MemoryStream(messageBuffer.Length);
                     await answer.WriteAsync(messageBuffer, 0, messageBuffer.Length, cancellationToken);
                     answer.Position = 0;
@@ -54,7 +61,7 @@ namespace SharpCaster.Services
                 if (cancellationToken.IsCancellationRequested) return;
                 try
                 {
-                    _client.WriteStream.Write(bytes, 0, bytes.Length);
+                    _stream.Write(bytes, 0, bytes.Length);
                 }
                 catch (IOException)
                 {
@@ -66,7 +73,8 @@ namespace SharpCaster.Services
 
         public async Task Disconnect()
         {
-            await _client.DisconnectAsync();
+            _stream.Dispose();
+            _client.Dispose();
             _client = null;
         }
     }
