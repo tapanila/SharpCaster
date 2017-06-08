@@ -48,13 +48,18 @@ namespace SharpCaster
 
         private async Task<ObservableCollection<Chromecast>> LocateDevices()
         {
-            _serviceBrowser.StartBrowse("_googlecast._tcp.local.");
+            if (_serviceBrowser.IsBrowsing)
+            {
+                _serviceBrowser.StopBrowse();
+            }
+            _serviceBrowser.StartBrowse("_googlecast._tcp");
             var timeOut = 0;
             while (DiscoveredDevices.Count < 1 && timeOut < 5000)
             {
                 await Task.Delay(200);
                 timeOut += 200;
             }
+            _serviceBrowser.StopBrowse();
             return DiscoveredDevices;
         }
 
