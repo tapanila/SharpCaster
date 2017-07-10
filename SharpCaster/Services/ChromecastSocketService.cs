@@ -50,15 +50,13 @@ namespace SharpCaster.Services
             }, cancellationToken);
         }
 
-        #pragma warning disable 1998
-        public async Task Write(byte[] bytes, CancellationToken cancellationToken)
-        #pragma warning restore 1998
+        public Task Write(byte[] bytes, CancellationToken cancellationToken)
         {
-            if (_client == null) return;
-            
+            if (_client == null) return Task.FromResult(true);
+
             lock (LockObject)
             {
-                if (cancellationToken.IsCancellationRequested) return;
+                if (cancellationToken.IsCancellationRequested) return Task.FromResult(true);
                 try
                 {
                     _stream.Write(bytes, 0, bytes.Length);
@@ -69,6 +67,8 @@ namespace SharpCaster.Services
                     //TODO: Raise an disconnected event
                 }
             }
+
+            return Task.FromResult(true);
         }
 
         public async Task Disconnect()
