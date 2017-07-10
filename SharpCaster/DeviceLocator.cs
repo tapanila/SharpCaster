@@ -23,7 +23,7 @@ namespace SharpCaster
 
         private void onServiceAdded(object sender, ServiceAnnouncementEventArgs e)
         {
-            var name = e.Announcement.Hostname;
+            var name = e.Announcement.Txt[6].Substring(3);
             var ip = e.Announcement.Addresses[0];
             Uri myUri;
             Uri.TryCreate("https://" + ip, UriKind.Absolute, out myUri);
